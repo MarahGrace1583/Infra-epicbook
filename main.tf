@@ -2,24 +2,25 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# ================= DEFAULT VPC =================
+# Get default VPC
 data "aws_vpc" "default" {
   default = true
 }
 
-# ================= DEFAULT SUBNET =================
-data "aws_subnet_ids" "default" {
-  vpc_id = data.aws_vpc.default.id
+# Get subnets in default VPC (safe method)
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
 
-# ================= SECURITY GROUP =================
+# Security group
 resource "aws_security_group" "epicbook_sg" {
-  name        = "epicbook-sg"
-  description = "Allow SSH and HTTP"
-  vpc_id      = data.aws_vpc.default.id
+  name   = "epicbook-sg"
+  vpc_id = data.aws_vpc.default.id
 
   ingress {
-    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -27,7 +28,6 @@ resource "aws_security_group" "epicbook_sg" {
   }
 
   ingress {
-    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -42,14 +42,16 @@ resource "aws_security_group" "epicbook_sg" {
   }
 }
 
-# ================= FRONTEND EC2 =================
+# Frontend EC2
 resource "aws_instance" "frontend" {
-  ami           = "ami-0c02fb55956c7d316" # Ubuntu (us-east-1)
+  ami           = "ami-0c02fb55956c7d316"
   instance_type = "t2.micro"
 
-  key_name = "devopskey"  # 👈 matches devopskey.pem
+  key_name = "devopskey"
 
-  subnet_id = tolist(data.aws_subnet_ids.default.ids)[0]
+  subnet_id = data.aws_subnets.default.ids[0]
+
+  associate_public_ip_address = true
 
   vpc_security_group_ids = [aws_security_group.epicbook_sg.id]
 
@@ -58,14 +60,16 @@ resource "aws_instance" "frontend" {
   }
 }
 
-# ================= BACKEND EC2 =================
+# Backend EC2
 resource "aws_instance" "backend" {
   ami           = "ami-0c02fb55956c7d316"
   instance_type = "t2.micro"
 
   key_name = "devopskey"
 
-  subnet_id = tolist(data.aws_subnet_ids.default.ids)[0]
+  subnet_id = data.aws_subnets.default.ids[0]
+
+  associate_public_ip_address = true
 
   vpc_security_group_ids = [aws_security_group.epicbook_sg.id]
 
